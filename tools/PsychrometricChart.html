@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Psychrometric Chart (1 atm) – Canvas</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background:#fafafa;}
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+    canvas { background:white; border:1px solid #ddd; border-radius:10px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .panel { max-width: 420px; font-size: 14px; color:#222; }
+    code { background:#f0f0f0; padding:2px 6px; border-radius:6px; }
+    .hint { color:#555; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <canvas id="chart" width="1100" height="720"></canvas>
+    <div class="panel">
+      <h3 style="margin-top:0">Psychrometric Chart (simplified)</h3>
+      <p>
+        X-axis: dry-bulb temperature (°C)<br/>
+        Y-axis: humidity ratio (g/kg dry air)
+      </p>
+      <p class="hint">
+        This is a practical engineering chart for water vapor in air at <b>1 atm</b> (101.325 kPa),
+        using common approximations (Buck saturation vapor pressure; straight wet-bulb lines via
+        constant-enthalpy assumption).
+      </p>
+      <p>
+        Tweak ranges in <code>CONFIG</code> (e.g., Tmin/Tmax, Wmax), and which RH / Twb lines to draw.
+      </p>
+      <button id="redraw">Redraw</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---------------------------
+  // CONFIG
+  // ---------------------------
+  const CONFIG = {
+    P_kPa: 101.325,      // standard atmospheric pressure
+    Tmin_C: 15,          // chart min dry-bulb
+    Tmax_C: 35,          // chart max dry-bulb
+    Wmax_gpkg: 30,       // chart max humidity ratio (g/kg dry air)
+    margin: {l: 85, r: 30, t: 30, b: 70},
+
+    // Grid
+    xMajor_C: 5,
+    xMinor_C: 1,
+    yMajor_gpkg: 2,
+    yMinor_gpkg: 1,
+
+    // Lines
+    rhList: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    twbList_C: [0,5,10,15,20,25,30], // wet-bulb lines (°C)
+
+    // Drawing styles
+    colors: {
+      gridMajor: "#e3e3e3",
+      gridMinor: "#f0f0f0",
+      axis: "#111",
+      text: "#111",
+      rh: "#2a6fbb",
+      rh100: "#1a1a1a",
+      twb: "#cc3a2b",
+      bg: "#ffffff"
+    }
+  };
+
+  // ---------------------------
+  // Psychrometric functions (1 atm)
+  // Units:
+  //  - T in °C
+  //  - P in kPa
+  //  - Pw in kPa
+  //  - W in kg/kg dry air (convert to g/kg for axis)
+  // ---------------------------
+
+  // Buck (1981-ish) saturation vapor pressure over water (kPa)
+  function pws_kPa(Tc){
+    // valid for typical HVAC temps; good practical accuracy
+    // pws (kPa) = 0.61121 * exp((18.678 - T/234.5) * (T/(257.14+T)))
+    const T = Tc;
+    return 0.61121 * Math.exp((18.678 - (T/234.5)) * (T/(257.14 + T)));
+  }
+
+  // Humidity ratio from vapor partial pressure (kg/kg dry air)
+  function W_from_Pw(Pw_kPa, P_kPa){
+    // W = 0.621945 * Pw / (P - Pw)
+    const eps = 0.621945;
+    const denom = Math.max(1e-9, (P_kPa - Pw_kPa));
+    return eps * Pw_kPa / denom;
+  }
+
+  // Vapor partial pressure from humidity ratio (kPa)
+  function Pw_from_W(W, P_kPa){
+    const eps = 0.621945;
+    return (W * P_kPa) / (eps + W);
+  }
+
+  // Humidity ratio from dry-bulb and RH (fraction 0..1)
+  function W_from_T_RH(Tc, RH, P_kPa){
+    const Pw = RH * pws_kPa(Tc);
+    return W_from_Pw(Pw, P_kPa);
+  }
+
+  // Moist air enthalpy (kJ/kg dry air), common HVAC approximation
+  // h = 1.006*T + W*(2501 + 1.86*T)
+  function h_kJkgda(Tc, W){
+    return 1.006*Tc + W*(2501 + 1.86*Tc);
+  }
+
+  // Wet-bulb line approximation:
+  // Twb lines are close to constant-enthalpy lines for standard pressure.
+  // We compute the enthalpy of saturated air at Twb, then for each dry-bulb T,
+  // solve W from h(T,W)=h_sat(Twb).
+  function W_on_Twb_line(Tdb_C, Twb_C, P_kPa){
+    // enthalpy at saturation at wet-bulb
+    const Wsat_wb = W_from_T_RH(Twb_C, 1.0, P_kPa);
+    const hLine = h_kJkgda(Twb_C, Wsat_wb);
+
+    // Solve for W at this dry bulb:
+    // hLine = 1.006*Tdb + W*(2501 + 1.86*Tdb)
+    const denom = (2501 + 1.86*Tdb_C);
+    if (denom <= 0) return NaN;
+    const W = (hLine - 1.006*Tdb_C) / denom;
+    return W;
+  }
+
+  // ---------------------------
+  // Canvas helpers
+  // ---------------------------
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+
+  function clear(){
+    ctx.save();
+    ctx.fillStyle = CONFIG.colors.bg;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+  }
+
+  function plotArea(){
+    const {l,r,t,b} = CONFIG.margin;
+    return {
+      x0: l,
+      y0: t,
+      x1: canvas.width - r,
+      y1: canvas.height - b,
+      w: (canvas.width - l - r),
+      h: (canvas.height - t - b)
+    };
+  }
+
+  // Map T (°C) and W (g/kg) to pixel coords
+  function makeScales(){
+    const pa = plotArea();
+    const Tmin = CONFIG.Tmin_C, Tmax = CONFIG.Tmax_C;
+    const Wmin = 0, Wmax = CONFIG.Wmax_gpkg;
+
+    return {
+      x: (T) => pa.x0 + ( (T - Tmin) / (Tmax - Tmin) ) * pa.w,
+      y: (W_gpkg) => pa.y1 - ( (W_gpkg - Wmin) / (Wmax - Wmin) ) * pa.h,
+      invX: (px) => Tmin + ( (px - pa.x0) / pa.w ) * (Tmax - Tmin),
+      invY: (py) => Wmin + ( (pa.y1 - py) / pa.h ) * (Wmax - Wmin),
+      pa
+    };
+  }
+
+  function drawText(txt, x, y, align="left", baseline="alphabetic", color=CONFIG.colors.text, font="12px system-ui"){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    ctx.fillText(txt, x, y);
+    ctx.restore();
+  }
+
+  function drawLine(points, strokeStyle, lineWidth=1, dash=null){
+    if (!points.length) return;
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i=1;i<points.length;i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Clip to plot area
+  function withClip(fn){
+    const {pa} = makeScales();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pa.x0, pa.y0, pa.w, pa.h);
+    ctx.clip();
+    fn();
+    ctx.restore();
+  }
+
+  // ---------------------------
+  // Drawing routines
+  // ---------------------------
+  function drawAxesAndGrid(sc){
+    const {pa} = sc;
+    const {Tmin_C:Tmin, Tmax_C:Tmax, Wmax_gpkg:Wmax} = CONFIG;
+
+    // Grid lines
+    // Vertical (T)
+    for (let T = Math.ceil(Tmin); T <= Math.floor(Tmax); T += CONFIG.xMinor_C){
+      const major = (T % CONFIG.xMajor_C === 0);
+      ctx.save();
+      ctx.strokeStyle = major ? CONFIG.colors.gridMajor : CONFIG.colors.gridMinor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sc.x(T), pa.y0);
+      ctx.lineTo(sc.x(T), pa.y1);
+      ctx.stroke();
+      ctx.restore();
+
+      if (major) {
+        drawText(`${T}`, sc.x(T), pa.y1 + 18, "center", "top", "#333");
+      }
+    }
+
+    // Horizontal (W g/kg)
+    for (let W = 0; W <= Wmax + 1e-9; W += CONFIG.yMinor_gpkg){
+      const major = (Math.round(W) % CONFIG.yMajor_gpkg === 0);
+      ctx.save();
+      ctx.strokeStyle = major ? CONFIG.colors.gridMajor : CONFIG.colors.gridMinor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pa.x0, sc.y(W));
+      ctx.lineTo(pa.x1, sc.y(W));
+      ctx.stroke();
+      ctx.restore();
+
+      if (major) {
+        drawText(`${W}`, pa.x0 - 10, sc.y(W), "right", "middle", "#333");
+      }
+    }
+
+    // Axes
+    ctx.save();
+    ctx.strokeStyle = CONFIG.colors.axis;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    // y axis
+    ctx.moveTo(pa.x0, pa.y0);
+    ctx.lineTo(pa.x0, pa.y1);
+    // x axis
+    ctx.lineTo(pa.x1, pa.y1);
+    ctx.stroke();
+    ctx.restore();
+
+    // Labels
+    drawText("Dry-bulb temperature (°C)", (pa.x0+pa.x1)/2, canvas.height-22, "center", "middle", CONFIG.colors.text, "14px system-ui");
+    // rotated y label
+    ctx.save();
+    ctx.translate(22, (pa.y0+pa.y1)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = CONFIG.colors.text;
+    ctx.font = "14px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Humidity ratio (g/kg dry air)", 0, 0);
+    ctx.restore();
+
+    // Title
+    drawText("Psychrometric Chart (Water vapor in air, 1 atm)", pa.x0, 16, "left", "top", "#111", "16px system-ui");
+  }
+
+  function drawSaturationCurve(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+    const pts = [];
+    for (let T = Tmin; T <= Tmax; T += 0.25){
+      const W = W_from_T_RH(T, 1.0, P) * 1000; // g/kg
+      if (W < 0 || W > CONFIG.Wmax_gpkg*1.25) continue;
+      pts.push({x: sc.x(T), y: sc.y(W)});
+    }
+    withClip(() => drawLine(pts, CONFIG.colors.rh100, 2.2));
+    // label near the upper right
+    if (pts.length){
+      const p = pts[Math.max(0, pts.length-1)];
+      drawText("100% RH (saturation)", p.x - 6, p.y - 10, "right", "bottom", "#111", "12px system-ui");
+    }
+  }
+
+  function drawRelativeHumidityCurves(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+
+    withClip(() => {
+      for (const rh of CONFIG.rhList){
+        const pts = [];
+        for (let T = Tmin; T <= Tmax; T += 0.5){
+          const W = W_from_T_RH(T, rh, P) * 1000; // g/kg
+          if (!isFinite(W)) continue;
+          if (W < 0) continue;
+          if (W > CONFIG.Wmax_gpkg) continue;
+          pts.push({x: sc.x(T), y: sc.y(W)});
+        }
+
+        const isSat = Math.abs(rh - 1.0) < 1e-9;
+        if (isSat) continue; // saturation drawn separately
+
+        drawLine(pts, CONFIG.colors.rh, 1.2, [6,4]);
+
+        // label each curve near right side (where it fits)
+        if (pts.length > 5){
+          const idx = Math.floor(pts.length*0.85);
+          const p = pts[idx];
+          const label = `${Math.round(rh*100)}%`;
+          drawText(label, p.x + 6, p.y, "left", "middle", CONFIG.colors.rh, "12px system-ui");
+        }
+      }
+    });
+
+    drawText("Relative humidity", sc.pa.x1 - 10, sc.pa.y0 + 18, "right", "top", CONFIG.colors.rh, "12px system-ui");
+  }
+
+  function drawWetBulbLines(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+
+    withClip(() => {
+      for (const Twb of CONFIG.twbList_C){
+        const pts = [];
+        for (let Tdb = Tmin; Tdb <= Tmax; Tdb += 0.5){
+          if (Tdb < Twb) continue; // wet-bulb can't exceed dry-bulb for unsaturated air
+          const W = W_on_Twb_line(Tdb, Twb, P) * 1000; // g/kg
+          if (!isFinite(W)) continue;
+          if (W < 0) continue;
+
+          // Don't draw beyond saturation curve (physically impossible)
+          const Wsat = W_from_T_RH(Tdb, 1.0, P) * 1000;
+          if (W > Wsat + 1e-6) continue;
+
+          if (W > CONFIG.Wmax_gpkg) continue;
+          pts.push({x: sc.x(Tdb), y: sc.y(W)});
+        }
+
+        if (pts.length < 2) continue;
+        drawLine(pts, CONFIG.colors.twb, 1.1);
+
+        // label near where it intersects mid-ish
+        const idx = Math.floor(pts.length*0.55);
+        const p = pts[idx];
+        drawText(`Twb ${Twb}°C`, p.x + 6, p.y - 4, "left", "bottom", CONFIG.colors.twb, "11px system-ui");
+      }
+    });
+
+    drawText("Wet-bulb temperature lines (≈ constant enthalpy)", sc.pa.x0 + 10, sc.pa.y0 + 18, "left", "top", CONFIG.colors.twb, "12px system-ui");
+  }
+
+  function drawChart(){
+    clear();
+    const sc = makeScales();
+    drawAxesAndGrid(sc);
+    drawRelativeHumidityCurves(sc);
+    drawWetBulbLines(sc);
+    drawSaturationCurve(sc);
+
+    // A small legend/notes
+    const {pa} = sc;
+    drawText("Notes:", pa.x0, pa.y0 + pa.h + 42, "left", "top", "#333", "12px system-ui");
+    drawText("• Humidity ratio W in g/kg dry air.  • RH curves use Buck saturation pressure.  • Twb lines use constant-enthalpy approximation.", pa.x0 + 50, pa.y0 + pa.h + 42, "left", "top", "#555", "12px system-ui");
+  }
+
+  document.getElementById("redraw").addEventListener("click", drawChart);
+  drawChart();
+})();
+</script>
+</body>
+</html>
