@@ -45,7 +45,7 @@
   // ---------------------------
   const CONFIG = {
     P_kPa: 101.325,
-    Tmin_C: 15,
+    Tmin_C: -5,
     Tmax_C: 35,
     Wmax_gpkg: 30,
     margin: {l: 85, r: 30, t: 30, b: 70},
@@ -122,7 +122,7 @@
       // High humidity region where you'd remove moisture (often with cooling coil)
       xMin: 18, xMax: 32,
       yMin: 12, yMax: 30,
-      labelPos: {x: 25, y: 20}
+      labelPos: {x: 25, y: 15}
     },
     {
       id: "heating_dehumid",
@@ -133,8 +133,8 @@
       type: "poly",
       // Cold & damp: warm up while lowering moisture (e.g., desiccant + heating)
       pts: [
-        {x: -5, y: 8},
-        {x: -5, y: 14},
+        {x: 10, y: 5},
+        {x: 10, y: 14},
         {x: 18, y: 14},
         {x: 18, y: 10}
       ],
@@ -150,7 +150,7 @@
       // Hot/dry-to-moderate humidity: sensible cooling
       xMin: 26, xMax: 50,
       yMin: 0,  yMax: 12,
-      labelPos: {x: 38, y: 9.5}
+      labelPos: {x: 30, y: 9.5}
     },
     {
       id: "cooling_dehumid",
@@ -162,7 +162,7 @@
       // Hot & humid: cool and condense moisture
       xMin: 26, xMax: 50,
       yMin: 12, yMax: 30,
-      labelPos: {x: 39, y: 20.5}
+      labelPos: {x: 33, y: 18}
     },
     {
       id: "cool_dehumid_reheat",
