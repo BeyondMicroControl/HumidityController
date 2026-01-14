@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Psychrometric Chart (1 atm) + Configurable Zones</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 16px; background:#fafafa;}
+    .row { display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start; }
+    canvas { background:white; border:1px solid #ddd; border-radius:10px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+    .panel { max-width: 460px; font-size: 14px; color:#222; }
+    code { background:#f0f0f0; padding:2px 6px; border-radius:6px; }
+    .hint { color:#555; line-height: 1.35; }
+    label { display:block; margin:6px 0; }
+    .controls { padding:10px 12px; background:#fff; border:1px solid #e6e6e6; border-radius:10px; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <canvas id="chart" width="1100" height="720"></canvas>
+
+    <div class="panel">
+      <h3 style="margin-top:0">Zones overlay</h3>
+      <p class="hint">
+        This adds a configurable “zones” layer (filled polygons/rectangles) drawn in
+        psychrometric coordinates (Tdb, W). The provided zone shapes are <b>reasonable defaults</b>
+        (not a normative standard) and are meant to be edited to match your reference examples.
+      </p>
+
+      <div class="controls" id="zoneControls"></div>
+
+      <p class="hint">
+        Edit zone boundaries in <code>ZONES</code> (Tdb °C, W g/kg). Each zone can be
+        rectangle, polygon, or “rect clipped to saturation”.
+      </p>
+
+      <button id="redraw">Redraw</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---------------------------
+  // CONFIG
+  // ---------------------------
+  const CONFIG = {
+    P_kPa: 101.325,
+    Tmin_C: 15,
+    Tmax_C: 35,
+    Wmax_gpkg: 30,
+    margin: {l: 85, r: 30, t: 30, b: 70},
+
+    xMajor_C: 5,
+    xMinor_C: 1,
+    yMajor_gpkg: 2,
+    yMinor_gpkg: 1,
+
+    rhList: [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0],
+    twbList_C: [0,5,10,15,20,25,30],
+
+    colors: {
+      gridMajor: "#e3e3e3",
+      gridMinor: "#f0f0f0",
+      axis: "#111",
+      text: "#111",
+      rh: "#2a6fbb",
+      rh100: "#1a1a1a",
+      twb: "#cc3a2b",
+      bg: "#ffffff"
+    }
+  };
+
+  // ---------------------------
+  // ZONES (EDIT THESE)
+  // Coordinate system: (Tdb_C, W_gpkg)
+  //
+  // Types:
+  //  - rect: {type:"rect", xMin,xMax, yMin,yMax}
+  //  - rectSat: same rect but top clipped to saturation (useful when yMax exceeds saturation curve)
+  //  - poly: {type:"poly", pts:[{x,y}, ...]}
+  //
+  // NOTE: These are default illustrative boundaries; adjust to match your examples.
+  // ---------------------------
+  const ZONES = [
+    {
+      id: "comfort",
+      label: "Comfort zone",
+      enabled: true,
+      fill: "rgba(46, 139, 87, 0.18)",
+      stroke: "rgba(46, 139, 87, 0.7)",
+      lineWidth: 1.5,
+      type: "poly",
+      // Typical comfort-ish envelope: 20–26°C, ~30–60% RH-ish.
+      // We approximate in W by using endpoints around 6–12 g/kg.
+      pts: [
+        {x: 20, y: 6.0},
+        {x: 20, y: 12.0},
+        {x: 26, y: 12.0},
+        {x: 26, y: 7.0}
+      ],
+      labelPos: {x: 23, y: 9.2}
+    },
+    {
+      id: "heating",
+      label: "Heating",
+      enabled: true,
+      fill: "rgba(255, 165, 0, 0.14)",
+      stroke: "rgba(255, 165, 0, 0.65)",
+      type: "rect",
+      // Left/low-mid humidity region: heat air up (sensible heating)
+      xMin: -5, xMax: 20,
+      yMin: 0,  yMax: 12,
+      labelPos: {x: 8, y: 10.5}
+    },
+    {
+      id: "dehumidification",
+      label: "Dehumidification",
+      enabled: true,
+      fill: "rgba(0, 120, 255, 0.10)",
+      stroke: "rgba(0, 120, 255, 0.55)",
+      type: "rectSat",
+      // High humidity region where you'd remove moisture (often with cooling coil)
+      xMin: 18, xMax: 32,
+      yMin: 12, yMax: 30,
+      labelPos: {x: 25, y: 20}
+    },
+    {
+      id: "heating_dehumid",
+      label: "Heating + dehumidification",
+      enabled: true,
+      fill: "rgba(186, 85, 211, 0.10)",
+      stroke: "rgba(186, 85, 211, 0.55)",
+      type: "poly",
+      // Cold & damp: warm up while lowering moisture (e.g., desiccant + heating)
+      pts: [
+        {x: -5, y: 8},
+        {x: -5, y: 14},
+        {x: 18, y: 14},
+        {x: 18, y: 10}
+      ],
+      labelPos: {x: 6, y: 12.5}
+    },
+    {
+      id: "cooling",
+      label: "Cooling",
+      enabled: true,
+      fill: "rgba(0, 180, 255, 0.10)",
+      stroke: "rgba(0, 180, 255, 0.55)",
+      type: "rectSat",
+      // Hot/dry-to-moderate humidity: sensible cooling
+      xMin: 26, xMax: 50,
+      yMin: 0,  yMax: 12,
+      labelPos: {x: 38, y: 9.5}
+    },
+    {
+      id: "cooling_dehumid",
+      label: "Cooling + dehumidification",
+      enabled: true,
+      fill: "rgba(255, 69, 0, 0.10)",
+      stroke: "rgba(255, 69, 0, 0.55)",
+      type: "rectSat",
+      // Hot & humid: cool and condense moisture
+      xMin: 26, xMax: 50,
+      yMin: 12, yMax: 30,
+      labelPos: {x: 39, y: 20.5}
+    },
+    {
+      id: "cool_dehumid_reheat",
+      label: "Cooling + dehumidification (with re-heat)",
+      enabled: true,
+      fill: "rgba(220, 20, 60, 0.10)",
+      stroke: "rgba(220, 20, 60, 0.60)",
+      type: "poly",
+      // Conceptual "overcool then reheat" region: target low W but moderate T.
+      // Use a polygon around 18–26°C with low W.
+      pts: [
+        {x: 18, y: 3.0},
+        {x: 18, y: 7.0},
+        {x: 26, y: 7.5},
+        {x: 26, y: 4.0}
+      ],
+      labelPos: {x: 22, y: 5.6}
+    }
+  ];
+
+  // ---------------------------
+  // Psychrometric functions
+  // ---------------------------
+  function pws_kPa(Tc){
+    const T = Tc;
+    return 0.61121 * Math.exp((18.678 - (T/234.5)) * (T/(257.14 + T)));
+  }
+  function W_from_Pw(Pw_kPa, P_kPa){
+    const eps = 0.621945;
+    const denom = Math.max(1e-9, (P_kPa - Pw_kPa));
+    return eps * Pw_kPa / denom;
+  }
+  function W_from_T_RH(Tc, RH, P_kPa){
+    const Pw = RH * pws_kPa(Tc);
+    return W_from_Pw(Pw, P_kPa);
+  }
+  function h_kJkgda(Tc, W){
+    return 1.006*Tc + W*(2501 + 1.86*Tc);
+  }
+  function W_on_Twb_line(Tdb_C, Twb_C, P_kPa){
+    const Wsat_wb = W_from_T_RH(Twb_C, 1.0, P_kPa);
+    const hLine = h_kJkgda(Twb_C, Wsat_wb);
+    const denom = (2501 + 1.86*Tdb_C);
+    if (denom <= 0) return NaN;
+    return (hLine - 1.006*Tdb_C) / denom;
+  }
+  function Wsat_gpkg(Tc){
+    return W_from_T_RH(Tc, 1.0, CONFIG.P_kPa) * 1000;
+  }
+
+  // ---------------------------
+  // Canvas helpers
+  // ---------------------------
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+
+  function clear(){
+    ctx.save();
+    ctx.fillStyle = CONFIG.colors.bg;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+  }
+  function plotArea(){
+    const {l,r,t,b} = CONFIG.margin;
+    return {
+      x0: l, y0: t,
+      x1: canvas.width - r,
+      y1: canvas.height - b,
+      w: (canvas.width - l - r),
+      h: (canvas.height - t - b)
+    };
+  }
+  function makeScales(){
+    const pa = plotArea();
+    const Tmin = CONFIG.Tmin_C, Tmax = CONFIG.Tmax_C;
+    const Wmin = 0, Wmax = CONFIG.Wmax_gpkg;
+    return {
+      x: (T) => pa.x0 + ((T - Tmin)/(Tmax - Tmin))*pa.w,
+      y: (W) => pa.y1 - ((W - Wmin)/(Wmax - Wmin))*pa.h,
+      pa
+    };
+  }
+  function drawText(txt, x, y, align="left", baseline="alphabetic", color=CONFIG.colors.text, font="12px system-ui"){
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = font;
+    ctx.textAlign = align;
+    ctx.textBaseline = baseline;
+    ctx.fillText(txt, x, y);
+    ctx.restore();
+  }
+  function drawLine(points, strokeStyle, lineWidth=1, dash=null){
+    if (!points.length) return;
+    ctx.save();
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (dash) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i=1;i<points.length;i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function withClip(fn){
+    const {pa} = makeScales();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pa.x0, pa.y0, pa.w, pa.h);
+    ctx.clip();
+    fn();
+    ctx.restore();
+  }
+
+  // ---------------------------
+  // Draw: axes, grid, RH, Twb, saturation
+  // ---------------------------
+  function drawAxesAndGrid(sc){
+    const {pa} = sc;
+    const {Tmin_C:Tmin, Tmax_C:Tmax, Wmax_gpkg:Wmax} = CONFIG;
+
+    for (let T = Math.ceil(Tmin); T <= Math.floor(Tmax); T += CONFIG.xMinor_C){
+      const major = (T % CONFIG.xMajor_C === 0);
+      ctx.save();
+      ctx.strokeStyle = major ? CONFIG.colors.gridMajor : CONFIG.colors.gridMinor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sc.x(T), pa.y0);
+      ctx.lineTo(sc.x(T), pa.y1);
+      ctx.stroke();
+      ctx.restore();
+      if (major) drawText(`${T}`, sc.x(T), pa.y1 + 18, "center", "top", "#333");
+    }
+
+    for (let W = 0; W <= Wmax + 1e-9; W += CONFIG.yMinor_gpkg){
+      const major = (Math.round(W) % CONFIG.yMajor_gpkg === 0);
+      ctx.save();
+      ctx.strokeStyle = major ? CONFIG.colors.gridMajor : CONFIG.colors.gridMinor;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(pa.x0, sc.y(W));
+      ctx.lineTo(pa.x1, sc.y(W));
+      ctx.stroke();
+      ctx.restore();
+      if (major) drawText(`${W}`, pa.x0 - 10, sc.y(W), "right", "middle", "#333");
+    }
+
+    // axes
+    ctx.save();
+    ctx.strokeStyle = CONFIG.colors.axis;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pa.x0, pa.y0);
+    ctx.lineTo(pa.x0, pa.y1);
+    ctx.lineTo(pa.x1, pa.y1);
+    ctx.stroke();
+    ctx.restore();
+
+    drawText("Dry-bulb temperature (°C)", (pa.x0+pa.x1)/2, canvas.height-22, "center", "middle", CONFIG.colors.text, "14px system-ui");
+    ctx.save();
+    ctx.translate(22, (pa.y0+pa.y1)/2);
+    ctx.rotate(-Math.PI/2);
+    ctx.fillStyle = CONFIG.colors.text;
+    ctx.font = "14px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Humidity ratio (g/kg dry air)", 0, 0);
+    ctx.restore();
+
+    drawText("Psychrometric Chart (1 atm) with Zones", pa.x0, 16, "left", "top", "#111", "16px system-ui");
+  }
+
+  function drawSaturationCurve(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+    const pts = [];
+    for (let T = Tmin; T <= Tmax; T += 0.25){
+      const W = W_from_T_RH(T, 1.0, P) * 1000;
+      if (W < 0 || W > CONFIG.Wmax_gpkg*1.25) continue;
+      pts.push({x: sc.x(T), y: sc.y(W)});
+    }
+    withClip(() => drawLine(pts, CONFIG.colors.rh100, 2.2));
+    if (pts.length){
+      const p = pts[Math.max(0, pts.length-1)];
+      drawText("100% RH (saturation)", p.x - 6, p.y - 10, "right", "bottom", "#111", "12px system-ui");
+    }
+  }
+
+  function drawRelativeHumidityCurves(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+    withClip(() => {
+      for (const rh of CONFIG.rhList){
+        if (Math.abs(rh - 1.0) < 1e-9) continue;
+        const pts = [];
+        for (let T = Tmin; T <= Tmax; T += 0.5){
+          const W = W_from_T_RH(T, rh, P) * 1000;
+          if (!isFinite(W) || W < 0 || W > CONFIG.Wmax_gpkg) continue;
+          pts.push({x: sc.x(T), y: sc.y(W)});
+        }
+        drawLine(pts, CONFIG.colors.rh, 1.2, [6,4]);
+        if (pts.length > 5){
+          const idx = Math.floor(pts.length*0.85);
+          const p = pts[idx];
+          drawText(`${Math.round(rh*100)}%`, p.x + 6, p.y, "left", "middle", CONFIG.colors.rh, "12px system-ui");
+        }
+      }
+    });
+    drawText("Relative humidity", sc.pa.x1 - 10, sc.pa.y0 + 18, "right", "top", CONFIG.colors.rh, "12px system-ui");
+  }
+
+  function drawWetBulbLines(sc){
+    const {Tmin_C:Tmin, Tmax_C:Tmax, P_kPa:P} = CONFIG;
+    withClip(() => {
+      for (const Twb of CONFIG.twbList_C){
+        const pts = [];
+        for (let Tdb = Tmin; Tdb <= Tmax; Tdb += 0.5){
+          if (Tdb < Twb) continue;
+          const W = W_on_Twb_line(Tdb, Twb, P) * 1000;
+          if (!isFinite(W) || W < 0 || W > CONFIG.Wmax_gpkg) continue;
+          const Wsat = W_from_T_RH(Tdb, 1.0, P) * 1000;
+          if (W > Wsat + 1e-6) continue;
+          pts.push({x: sc.x(Tdb), y: sc.y(W)});
+        }
+        if (pts.length < 2) continue;
+        drawLine(pts, CONFIG.colors.twb, 1.1);
+        const idx = Math.floor(pts.length*0.55);
+        const p = pts[idx];
+        drawText(`Twb ${Twb}°C`, p.x + 6, p.y - 4, "left", "bottom", CONFIG.colors.twb, "11px system-ui");
+      }
+    });
+    drawText("Wet-bulb lines (≈ constant enthalpy)", sc.pa.x0 + 10, sc.pa.y0 + 18, "left", "top", CONFIG.colors.twb, "12px system-ui");
+  }
+
+  // ---------------------------
+  // Zones layer
+  // ---------------------------
+
+  function zoneToPolygonPoints(zone){
+    // Returns an array of (Tdb, W) points in psychrometric coords.
+    // For rectSat, we build a polygon whose top edge is clipped by saturation curve.
+    if (zone.type === "poly"){
+      return zone.pts.slice();
+    }
+    if (zone.type === "rect"){
+      const {xMin,xMax,yMin,yMax} = zone;
+      return [
+        {x:xMin, y:yMin},
+        {x:xMin, y:yMax},
+        {x:xMax, y:yMax},
+        {x:xMax, y:yMin}
+      ];
+    }
+    if (zone.type === "rectSat"){
+      const {xMin,xMax,yMin,yMax} = zone;
+      const pts = [];
+
+      // Bottom edge
+      pts.push({x:xMin, y:yMin});
+      pts.push({x:xMax, y:yMin});
+
+      // Right edge up to clipped top at xMax
+      const topR = Math.min(yMax, Wsat_gpkg(xMax));
+      pts.push({x:xMax, y:topR});
+
+      // Top edge: follow saturation if saturation < yMax; else straight at yMax.
+      // We'll sample along x from xMax down to xMin.
+      const step = 0.5;
+      for (let x = xMax; x >= xMin; x -= step){
+        const sat = Wsat_gpkg(x);
+        const yTop = Math.min(yMax, sat);
+        pts.push({x, y:yTop});
+      }
+
+      // Left edge down to yMin
+      const topL = Math.min(yMax, Wsat_gpkg(xMin));
+      pts.push({x:xMin, y:topL});
+      // Close by returning to first point is handled by drawing routine.
+      return pts;
+    }
+
+    return [];
+  }
+
+  function drawZone(sc, zone){
+    if (!zone.enabled) return;
+
+    const poly = zoneToPolygonPoints(zone)
+      .filter(p => isFinite(p.x) && isFinite(p.y));
+
+    if (poly.length < 3) return;
+
+    // Convert to pixels, and also clip to plot bounds & physical region:
+    // - y >= 0
+    // - y <= Wmax
+    // - y <= saturation at that x
+    const ptsPx = [];
+    for (const p of poly){
+      const yClamped = Math.max(0, Math.min(CONFIG.Wmax_gpkg, p.y, Wsat_gpkg(p.x)));
+      // also clamp x to chart range
+      const xClamped = Math.max(CONFIG.Tmin_C, Math.min(CONFIG.Tmax_C, p.x));
+      ptsPx.push({x: sc.x(xClamped), y: sc.y(yClamped)});
+    }
+
+    withClip(() => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(ptsPx[0].x, ptsPx[0].y);
+      for (let i=1;i<ptsPx.length;i++) ctx.lineTo(ptsPx[i].x, ptsPx[i].y);
+      ctx.closePath();
+
+      // fill
+      ctx.fillStyle = zone.fill || "rgba(0,0,0,0.08)";
+      ctx.fill();
+
+      // stroke
+      ctx.strokeStyle = zone.stroke || "rgba(0,0,0,0.5)";
+      ctx.lineWidth = zone.lineWidth ?? 1.5;
+      if (zone.dash) ctx.setLineDash(zone.dash);
+      ctx.stroke();
+
+      ctx.restore();
+    });
+
+    // label
+    if (zone.labelPos){
+      const lx = zone.labelPos.x, ly = zone.labelPos.y;
+      const lyClamped = Math.max(0, Math.min(CONFIG.Wmax_gpkg, ly, Wsat_gpkg(lx)));
+      drawText(zone.label, sc.x(lx), sc.y(lyClamped), "center", "middle", zone.stroke || "#111", "12px system-ui");
+    }
+  }
+
+  function drawZones(sc){
+    // Draw zones behind lines? Usually yes (so lines remain legible).
+    // We'll draw them after grid, before RH/Twb/saturation.
+    for (const z of ZONES){
+      drawZone(sc, z);
+    }
+  }
+
+  // ---------------------------
+  // UI controls for zones
+  // ---------------------------
+  function buildZoneControls(){
+    const box = document.getElementById("zoneControls");
+    box.innerHTML = "<b>Toggle zones</b>";
+    for (const z of ZONES){
+      const id = `chk_${z.id}`;
+      const wrap = document.createElement("label");
+      wrap.innerHTML = `<input type="checkbox" id="${id}" ${z.enabled ? "checked":""}/> ${z.label}`;
+      box.appendChild(wrap);
+      wrap.querySelector("input").addEventListener("change", (e) => {
+        z.enabled = e.target.checked;
+        drawChart();
+      });
+    }
+  }
+
+  // ---------------------------
+  // Main draw
+  // ---------------------------
+  function drawChart(){
+    clear();
+    const sc = makeScales();
+
+    drawAxesAndGrid(sc);
+    drawZones(sc);              // zones layer
+    drawRelativeHumidityCurves(sc);
+    drawWetBulbLines(sc);
+    drawSaturationCurve(sc);
+
+    // Notes
+    const {pa} = sc;
+    drawText("Notes:", pa.x0, pa.y0 + pa.h + 42, "left", "top", "#333", "12px system-ui");
+    drawText("• Zones are configurable overlays in (Tdb, W) space and clipped to saturation. Edit ZONES to match your reference chart.", pa.x0 + 50, pa.y0 + pa.h + 42, "left", "top", "#555", "12px system-ui");
+  }
+
+  document.getElementById("redraw").addEventListener("click", drawChart);
+  buildZoneControls();
+  drawChart();
+})();
+</script>
+</body>
+</html>
