@@ -45,7 +45,7 @@
   // ---------------------------
   const CONFIG = {
     P_kPa: 101.325,
-    Tmin_C: -5,
+    Tmin_C: 15,
     Tmax_C: 35,
     Wmax_gpkg: 30,
     margin: {l: 85, r: 30, t: 30, b: 70},
@@ -98,7 +98,7 @@
         {x: 26, y: 12.0},
         {x: 26, y: 7.0}
       ],
-      labelPos: {x: 23, y: 9.2}
+      labelPos: {x: 23, y: 9.5}
     },
     {
       id: "heating",
@@ -110,7 +110,7 @@
       // Left/low-mid humidity region: heat air up (sensible heating)
       xMin: -5, xMax: 20,
       yMin: 0,  yMax: 12,
-      labelPos: {x: 8, y: 10.5}
+      labelPos: {x: 16.3, y: 8.5}
     },
     {
       id: "dehumidification",
@@ -138,7 +138,7 @@
         {x: 18, y: 14},
         {x: 18, y: 10}
       ],
-      labelPos: {x: 6, y: 12.5}
+      labelPos: {x: 15.2, y: 13}
     },
     {
       id: "cooling",
@@ -446,53 +446,107 @@
     return [];
   }
 
-  function drawZone(sc, zone){
-    if (!zone.enabled) return;
+ function drawZone(sc, zone){
+  if (!zone.enabled) return;
 
-    const poly = zoneToPolygonPoints(zone)
-      .filter(p => isFinite(p.x) && isFinite(p.y));
+  let poly = zoneToPolygonPoints(zone)
+    .filter(p => isFinite(p.x) && isFinite(p.y));
 
-    if (poly.length < 3) return;
+  if (poly.length < 3) return;
 
-    // Convert to pixels, and also clip to plot bounds & physical region:
-    // - y >= 0
-    // - y <= Wmax
-    // - y <= saturation at that x
-    const ptsPx = [];
-    for (const p of poly){
-      const yClamped = Math.max(0, Math.min(CONFIG.Wmax_gpkg, p.y, Wsat_gpkg(p.x)));
-      // also clamp x to chart range
-      const xClamped = Math.max(CONFIG.Tmin_C, Math.min(CONFIG.Tmax_C, p.x));
-      ptsPx.push({x: sc.x(xClamped), y: sc.y(yClamped)});
-    }
+  // 1) Clip polygon to current chart window (prevents deformation)
+  const rect = {
+    xmin: CONFIG.Tmin_C,
+    xmax: CONFIG.Tmax_C,
+    ymin: 0,
+    ymax: CONFIG.Wmax_gpkg
+  };
+  poly = clipPolyToRect(poly, rect);
+  if (poly.length < 3) return;
 
-    withClip(() => {
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(ptsPx[0].x, ptsPx[0].y);
-      for (let i=1;i<ptsPx.length;i++) ctx.lineTo(ptsPx[i].x, ptsPx[i].y);
-      ctx.closePath();
+  // 2) Optional: clip "physically" to saturation by clamping Y at vertices
+  //    (good enough for most overlays; rectSat already follows saturation)
+  //    If you want true saturation clipping, we can do a 2nd clip pass.
+  poly = poly.map(p => ({ x: p.x, y: Math.min(p.y, Wsat_gpkg(p.x)) }));
+  // NOTE: This vertex-only saturation clamp won't deform at chart bounds anymore.
 
-      // fill
-      ctx.fillStyle = zone.fill || "rgba(0,0,0,0.08)";
-      ctx.fill();
+  // Convert to pixels
+  const ptsPx = poly.map(p => ({ x: sc.x(p.x), y: sc.y(p.y) }));
 
-      // stroke
-      ctx.strokeStyle = zone.stroke || "rgba(0,0,0,0.5)";
-      ctx.lineWidth = zone.lineWidth ?? 1.5;
-      if (zone.dash) ctx.setLineDash(zone.dash);
-      ctx.stroke();
+  withClip(() => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(ptsPx[0].x, ptsPx[0].y);
+    for (let i=1;i<ptsPx.length;i++) ctx.lineTo(ptsPx[i].x, ptsPx[i].y);
+    ctx.closePath();
 
-      ctx.restore();
-    });
+    ctx.fillStyle = zone.fill || "rgba(0,0,0,0.08)";
+    ctx.fill();
 
-    // label
-    if (zone.labelPos){
-      const lx = zone.labelPos.x, ly = zone.labelPos.y;
-      const lyClamped = Math.max(0, Math.min(CONFIG.Wmax_gpkg, ly, Wsat_gpkg(lx)));
-      drawText(zone.label, sc.x(lx), sc.y(lyClamped), "center", "middle", zone.stroke || "#111", "12px system-ui");
-    }
+    ctx.strokeStyle = zone.stroke || "rgba(0,0,0,0.5)";
+    ctx.lineWidth = zone.lineWidth ?? 1.5;
+    if (zone.dash) ctx.setLineDash(zone.dash);
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // label (unchanged, but keep it inside bounds too)
+  if (zone.labelPos){
+    const lx = Math.max(CONFIG.Tmin_C, Math.min(CONFIG.Tmax_C, zone.labelPos.x));
+    const ly = Math.max(0, Math.min(CONFIG.Wmax_gpkg, zone.labelPos.y, Wsat_gpkg(lx)));
+    drawText(zone.label, sc.x(lx), sc.y(ly), "center", "middle", zone.stroke || "#111", "12px system-ui");
   }
+}
+
+
+  function clipPolyToRect(poly, rect) {
+    // rect: {xmin,xmax,ymin,ymax} in psychrometric coords (Tdb, W)
+    let out = poly.slice();
+
+    // Helpers
+    const insideLeft   = p => p.x >= rect.xmin;
+    const insideRight  = p => p.x <= rect.xmax;
+    const insideBottom = p => p.y >= rect.ymin;
+    const insideTop    = p => p.y <= rect.ymax;
+
+    const intersectVertical = (a, b, x) => {
+        const t = (x - a.x) / (b.x - a.x);
+        return { x, y: a.y + t * (b.y - a.y) };
+    };
+
+    const intersectHorizontal = (a, b, y) => {
+        const t = (y - a.y) / (b.y - a.y);
+        return { x: a.x + t * (b.x - a.x), y };
+    };
+
+    const clipEdge = (points, insideFn, intersectFn) => {
+        const res = [];
+        if (points.length === 0) return res;
+        for (let i = 0; i < points.length; i++) {
+        const curr = points[i];
+        const prev = points[(i + points.length - 1) % points.length];
+        const currIn = insideFn(curr);
+        const prevIn = insideFn(prev);
+
+        if (currIn) {
+            if (!prevIn) res.push(intersectFn(prev, curr)); // entering
+            res.push(curr);
+        } else if (prevIn) {
+            res.push(intersectFn(prev, curr)); // leaving
+        }
+        }
+        return res;
+    };
+
+    // Clip against each boundary in order
+    out = clipEdge(out, insideLeft,   (a,b)=>intersectVertical(a,b, rect.xmin));
+    out = clipEdge(out, insideRight,  (a,b)=>intersectVertical(a,b, rect.xmax));
+    out = clipEdge(out, insideBottom, (a,b)=>intersectHorizontal(a,b, rect.ymin));
+    out = clipEdge(out, insideTop,    (a,b)=>intersectHorizontal(a,b, rect.ymax));
+
+    return out;
+  }
+
 
   function drawZones(sc){
     // Draw zones behind lines? Usually yes (so lines remain legible).
@@ -501,6 +555,8 @@
       drawZone(sc, z);
     }
   }
+
+
 
   // ---------------------------
   // UI controls for zones
