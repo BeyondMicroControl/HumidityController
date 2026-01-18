@@ -51,6 +51,9 @@
     .btnRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     code.inline{ background: rgba(124,196,255,.10); border:1px solid var(--line); padding:2px 6px; border-radius:7px; }
   </style>
+  <script>
+    const i_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"
+  </script>
 </head>
 <body>
 <header>
@@ -120,7 +123,10 @@
     <div class="row">
       <div>
         <label>Home Assistant discovery prefix</label>
-        <input id="haPrefix" placeholder="homeassistant" />
+         <div style="white-space: nowrap; display:inline-block">
+          <input id="haPrefix" placeholder="homeassistant" />
+          <script>document.write("<a href=\"https://www.home-assistant.io/integrations/mqtt/#discovery-messages\" style='filter: invert(1);'' target=_blank><img src='"+i_icon+"' style='width:12px;height:12px'></a>");</script>
+        </div>
       </div>
       <div>
         <label>Device info topic (optional)</label>
@@ -306,7 +312,7 @@
     "ENS160 + AHT2X (UART→MQTT)": {
       device_id: "ens160_aht2x_001",
       device_name: "Air Sensor 001",
-      manufacturer: "YourBrand",
+      manufacturer: "Unbranded",
       model: "ENS160 + AHT2X UART",
       sw_version: "1.2.3",
       base_topic: "home/air/ens160_aht2x_001",
