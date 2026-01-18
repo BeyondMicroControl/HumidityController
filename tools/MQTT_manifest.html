@@ -41,7 +41,6 @@
     .metric .grid3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:8px;}
     .toggle{ display:flex; align-items:center; gap:10px; margin-top:8px; }
     .toggle input{ width:auto; }
-    .split{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .outTabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
     .tab{ padding:8px 10px; border-radius:999px; border:1px solid var(--line); background:#0d141e; color:var(--muted); cursor:pointer; font-size:12px;}
@@ -50,10 +49,21 @@
     .ok{ border-left:3px solid #27ae60; padding:8px 10px; background: rgba(39,174,96,.08); border-radius:10px; color:var(--muted); font-size:12px; line-height:1.35; }
     .btnRow{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
     code.inline{ background: rgba(124,196,255,.10); border:1px solid var(--line); padding:2px 6px; border-radius:7px; }
+
+    /* Info icon */
+    .labelRow{ display:flex; align-items:center; gap:6px; margin:8px 0 4px; }
+    .labelRow label{ margin:0; }
+    .infoLink{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:16px; height:16px; border-radius:999px;
+      /*border:1px solid var(--line); background:#0d141e;*/
+      text-decoration:none;
+      -webkit-filter: invert(1);
+      filter: invert(2);
+    }
+    .infoLink:hover{ border-color:#2b78c2; background:rgba(124,196,255,.10); }
+    .infoLink img{ width:14px; height:14px; display:block; opacity:.9; }
   </style>
-  <script>
-    const i_icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"
-  </script>
 </head>
 <body>
 <header>
@@ -70,11 +80,15 @@
 
     <div class="row">
       <div>
-        <label>Preset</label>
+        <div class="labelRow">
+          <label>Preset</label>
+        </div>
         <select id="presetSelect"></select>
       </div>
       <div>
-        <label>Target outputs</label>
+        <div class="labelRow">
+          <label>Target outputs</label>
+        </div>
         <select id="targetsSelect" multiple size="3" title="Ctrl/Cmd-click to multi-select">
           <option value="ha" selected>Home Assistant (MQTT Discovery)</option>
           <option value="openhab">openHAB (topic suggestions)</option>
@@ -85,51 +99,96 @@
 
     <div class="row">
       <div>
-        <label>Device ID (node id)</label>
+        <div class="labelRow">
+          <label>Device ID (node id)</label>
+          <a class="infoLink"
+             href="https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery"
+             target="_blank" rel="noopener"
+             title="HA MQTT Discovery uses node_id/object_id & unique_id to identify entities.">
+            <img alt="info" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"/>
+          </a>
+        </div>
         <input id="deviceId" placeholder="ens160_aht2x_001" />
       </div>
       <div>
-        <label>Device name</label>
+        <div class="labelRow">
+          <label>Device name</label>
+        </div>
         <input id="deviceName" placeholder="Air Sensor 001" />
       </div>
     </div>
 
     <div class="row3">
       <div>
-        <label>Manufacturer</label>
+        <div class="labelRow">
+          <label>Manufacturer</label>
+        </div>
         <input id="manufacturer" placeholder="YourBrand" />
       </div>
       <div>
-        <label>Model</label>
+        <div class="labelRow">
+          <label>Model</label>
+        </div>
         <input id="model" placeholder="ENS160 + AHT2X UART" />
       </div>
       <div>
-        <label>SW version</label>
+        <div class="labelRow">
+          <label>SW version</label>
+        </div>
         <input id="swVersion" placeholder="1.2.3" />
       </div>
     </div>
 
     <div class="row">
       <div>
-        <label>State topic (JSON)</label>
+        <div class="labelRow">
+          <label>State topic (JSON)</label>
+          <a class="infoLink"
+             href="https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery"
+             target="_blank" rel="noopener"
+             title="HA entities read state from state_topic; value_template extracts fields.">
+            <img alt="info" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"/>
+          </a>
+        </div>
         <input id="stateTopic" placeholder="home/air/ens160_aht2x_001/state" />
       </div>
       <div>
-        <label>Availability topic</label>
+        <div class="labelRow">
+          <label>Availability topic</label>
+          <a class="infoLink"
+             href="https://www.home-assistant.io/integrations/mqtt/#availability"
+             target="_blank" rel="noopener"
+             title="Availability topics + LWT let HA mark entities online/offline.">
+            <img alt="info" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"/>
+          </a>
+        </div>
         <input id="availabilityTopic" placeholder="home/air/ens160_aht2x_001/availability" />
       </div>
     </div>
 
     <div class="row">
       <div>
-        <label>Home Assistant discovery prefix</label>
-         <div style="white-space: nowrap; display:inline-block">
-          <input id="haPrefix" placeholder="homeassistant" />
-          <script>document.write("<a href=\"https://www.home-assistant.io/integrations/mqtt/#discovery-messages\" style='filter: invert(1);'' target=_blank><img src='"+i_icon+"' style='width:12px;height:12px'></a>");</script>
+        <div class="labelRow">
+          <label>Home Assistant discovery prefix</label>
+          <a class="infoLink"
+             href="https://www.home-assistant.io/integrations/mqtt/#discovery-messages"
+             target="_blank" rel="noopener"
+             title="Discovery prefix and message format for HA MQTT Discovery.">
+            <img alt="info" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"/>
+          </a>
         </div>
+        <input id="haPrefix" placeholder="homeassistant" />
       </div>
       <div>
-        <label>Device info topic (optional)</label>
+        <div class="labelRow">
+          <label>Device info topic (optional)</label>
+          <a class="infoLink"
+             href="https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery"
+             target="_blank" rel="noopener"
+             title="Optional: publish a separate info/capabilities topic; discovery still uses config topics.">
+            <img alt="info" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC"/>
+          </a>
+        </div>
         <input id="infoTopic" placeholder="home/air/ens160_aht2x_001/info" />
       </div>
     </div>
@@ -222,6 +281,14 @@
 
 <script>
 (() => {
+  // Info icon (provided by you)
+  const INFO_ICON_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAACsklEQVRYR82X/XHTQBDFSQVABVEqCFSAqYCkgjgVABWgVJBQAaaCJBVEqSBJBYgOQgXwfppdzcnodGvfH3AzO7al3X1vP27vfPBit3Ui9Q+SRvJK8sbMH/X5LOklN5LbqNuDgCJgXySAAxpZkIHIZyOWtSkRaGX5MQF+MsedOSZyFpmA3MqIHttziFxJLnIMcgRwdmeOsf0ugUwfCV86jQFTLhZE3xvpiYs5AkQDOCR+StaSLgi8rbbSg43k0MAh4VkbdLcJAPrDwEk3DkhjzcInAVAWfB2lPlMCadoB9w7PgUPum708N5AlokQOCT7fumJKoNVDup20A16KnPcvzVFvkS0RIEDAKQdNCd5YgkbfHyQoUaduyZO9Swn8MtuS2UoK9NdYCs/ARg/PJHT7uuTF3qPHFmN9kuAjspgP7I4Bywl4NDRIH/FSodPIlkYH8zUETiTXkkjjVeBOTL0hTyFA6kj/2BhBlJX0dtkFqdtWP2j4rxDoJO8k0eZzR5SKjmbxnfJFF+RpxnsIeDrYm5MpVfD2e+t96VxJ1dnm7LpHjNzRLg5wVkNgtP8vCPzLEjzVNGFNCSZNuFFB2IbcXnyyRbq5hkArgHEb+iCanFIBBjUEJoMIrH1G8b4EGuExiocDrOYw2pfA7GHEMdxLON+jE3EfAt58RE8mnucuJBBhKu5yIeESg8OlRZBMP/T+upC44ey1KeOVaDb2bq3PrkDAfU9O3e3xm5YCA8pRykQBd7hl+RV/TL0bzc1/DgqioR8ox3kguhwJssSRTdoB5/fkwMsdQLCGhP/DoXMZVBCKLAAvJcwYVvaKXzoBWxlz3/PbL+whAzki8mjIGjpECCi/WegwXfEzu0oEMCIbOMGxE8n58+cAQxTyiz0UIZCCQQJpjJiXiBQDREY6Ay+RHN7/Af5krP5c2gveAAAAAElFTkSuQmCC";
+
+  // Replace all inline info icons in markup with the constant (so you can edit once)
+  // (We only do this to keep the HTML readable; the <img src> is already set above.)
+  // If you add more icons later, you can also generate them dynamically.
+  // No-op currently.
+
   // ----------------------------
   // Built-in metric templates
   // ----------------------------
@@ -266,7 +333,6 @@
       ha: { component: "sensor", device_class: null, unit: null, state_class: null },
       semantic: {
         kind: "enum",
-        // Typical 1..5 mapping; adjust to your needs
         enum_map: { "1":"excellent", "2":"good", "3":"moderate", "4":"poor", "5":"unhealthy" }
       }
     },
@@ -305,20 +371,17 @@
     }
   ];
 
-  // ----------------------------
-  // Presets (you can add more)
-  // ----------------------------
   const PRESETS = {
     "ENS160 + AHT2X (UART→MQTT)": {
       device_id: "ens160_aht2x_001",
       device_name: "Air Sensor 001",
-      manufacturer: "Unbranded",
+      manufacturer: "YourBrand",
       model: "ENS160 + AHT2X UART",
       sw_version: "1.2.3",
       base_topic: "home/air/ens160_aht2x_001",
       ha_prefix: "homeassistant",
       availability_payloads: { online: "online", offline: "offline" },
-      metrics: METRIC_LIBRARY.map(m => ({ ...m })) // clone
+      metrics: METRIC_LIBRARY.map(m => ({ ...m }))
     }
   };
 
@@ -346,6 +409,13 @@
     return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
   }
 
+  function currentMetrics() { return metricsState; }
+
+  // ----------------------------
+  // Metrics UI state
+  // ----------------------------
+  let metricsState = deepClone(PRESETS[Object.keys(PRESETS)[0]].metrics);
+
   // ----------------------------
   // Build profile from UI
   // ----------------------------
@@ -353,9 +423,7 @@
     const device_id = safeTopicPart($("deviceId").value || "");
     const base_topic = (() => {
       const st = $("stateTopic").value.trim();
-      // If user provided explicit state topic, derive base from that if possible:
       if (st.endsWith("/state")) return st.slice(0, -("/state".length));
-      // else if they left default, compute from device_id:
       return `home/air/${device_id}`;
     })();
 
@@ -387,7 +455,6 @@
       metrics: currentMetrics().map(m => ({ ...m }))
     };
 
-    // Normalize metrics (turn off diagnostics if requested)
     if (!profile.features.include_diagnostics) {
       profile.metrics = profile.metrics.map(m => {
         const isDiag = (m.ha && m.ha.entity_category === "diagnostic");
@@ -395,7 +462,6 @@
       });
     }
 
-    // Fill missing device.id
     if (!profile.device.id) profile.device.id = "device_001";
     if (!profile.device.identifiers?.length) profile.device.identifiers = [profile.device.id];
 
@@ -403,12 +469,8 @@
   }
 
   // ----------------------------
-  // Metrics UI state
+  // Render metrics wizard
   // ----------------------------
-  let metricsState = deepClone(PRESETS[Object.keys(PRESETS)[0]].metrics);
-
-  function currentMetrics() { return metricsState; }
-
   function renderMetrics() {
     const wrap = $("metricsList");
     wrap.innerHTML = "";
@@ -470,7 +532,6 @@
       `;
       wrap.appendChild(el);
 
-      // Kind-specific UI hint
       const kindBox = el.querySelector(`[data-kindbox="${idx}"]`);
       const kind = m.semantic?.kind || "number";
       if (kind === "enum") {
@@ -529,7 +590,6 @@
   // HA Discovery generator
   // ----------------------------
   function haDiscoveryTopic(haPrefix, nodeId, objectId, component="sensor") {
-    // homeassistant/sensor/<node_id>/<object_id>/config
     return `${haPrefix}/${component}/${nodeId}/${objectId}/config`;
   }
 
@@ -552,20 +612,17 @@
       }
     };
 
-    // Optional HA fields
     if (metric.ha?.device_class) cfg.device_class = metric.ha.device_class;
     if (metric.ha?.unit) cfg.unit_of_measurement = metric.ha.unit;
     if (metric.ha?.state_class) cfg.state_class = metric.ha.state_class;
     if (metric.ha?.entity_category) cfg.entity_category = metric.ha.entity_category;
 
-    // Availability
     if (profile.mqtt.include_availability) {
       cfg.availability_topic = profile.mqtt.availability_topic;
       cfg.payload_available = profile.mqtt.availability_payloads?.online ?? "online";
       cfg.payload_not_available = profile.mqtt.availability_payloads?.offline ?? "offline";
     }
 
-    // Clean undefined
     pruneUndefined(cfg);
     return { topic: haDiscoveryTopic(profile.mqtt.ha_prefix, nodeId, objectId, metric.ha?.component || "sensor"), payload: cfg };
   }
@@ -616,22 +673,20 @@
     parts.push(`• Publish HA discovery configs with <span class="mono">retain=true</span> so HA can discover after reboot.<br/><br/>`);
 
     parts.push(`<b>Enum / rating fields (e.g. AQU-UBA)</b><br/>`);
-    parts.push(`• Best practice: publish numeric code <span class="mono">aq_uba</span> + a human label <span class="mono">aq_label</span>.
-      Keep the mapping in your gateway/firmware, and show both in HA.<br/><br/>`);
+    parts.push(`• Best practice: publish numeric code <span class="mono">aq_uba</span> + a human label <span class="mono">aq_label</span>.<br/><br/>`);
 
     if (t.includes("openhab")) {
       parts.push(`<b>openHAB</b><br/>`);
-      parts.push(`• openHAB MQTT works great with either individual topics per metric or a single JSON state topic plus JSONPath/transform. Your canonical single-state-topic approach remains compatible.<br/><br/>`);
+      parts.push(`• openHAB MQTT supports JSON parsing via transforms; your single-state-topic approach remains compatible.<br/><br/>`);
     }
     if (t.includes("homie")) {
-      parts.push(`<b>Homie convention</b><br/>`);
-      parts.push(`• If you later want Homie, you can keep the same base topic and add Homie-style meta topics.
-      The state JSON can remain your “source of truth” while a bridge republishes Homie nodes/properties.<br/><br/>`);
+      parts.push(`<b>Homie</b><br/>`);
+      parts.push(`• You can later add Homie meta topics while keeping this canonical state topic as source-of-truth.<br/><br/>`);
     }
 
     parts.push(`<b>Upgrade strategy</b><br/>`);
     parts.push(`• Never change <span class="mono">device_id</span> / <span class="mono">unique_id</span> once deployed. Add new fields instead.<br/>`);
-    parts.push(`• If you ever need to remove an HA entity: publish an empty payload to its discovery config topic.<br/>`);
+    parts.push(`• To remove an HA entity: publish an empty payload to its discovery config topic.<br/>`);
 
     return parts.join("");
   }
@@ -644,13 +699,9 @@
     const issues = validateProfile(profile);
     renderValidation(issues);
 
-    // Still generate even with warnings (useful during editing)
     $("profileOut").value = JSON.stringify(profile, null, 2);
-
-    // Canonical topics
     $("mqttOut").value = buildCanonicalTopics(profile);
 
-    // HA discovery output
     const lines = [];
     const enabledMetrics = profile.metrics.filter(m => m.enabled);
 
@@ -687,24 +738,17 @@
     }
 
     $("haOut").value = lines.join("\n");
-
-    // Notes
     $("notesOut").innerHTML = buildNotes(profile);
   }
 
   function exampleState(profile) {
-    const o = {
-      device_id: `urn:dev:yourorg:${profile.device.id}`,
-      seq: 1,
-      status: "ok"
-    };
+    const o = { device_id: `urn:dev:yourorg:${profile.device.id}`, seq: 1, status: "ok" };
     profile.metrics.filter(m => m.enabled).forEach(m => {
       const kind = m.semantic?.kind || "number";
       if (m.json_path in o) return;
       if (kind === "number") o[m.json_path] = 0;
       else if (kind === "string") o[m.json_path] = "";
       else if (kind === "enum") {
-        // pick first enum key if available
         const map = m.semantic?.enum_map || {};
         const firstKey = Object.keys(map)[0] || "1";
         o[m.json_path] = Number.isFinite(+firstKey) ? +firstKey : firstKey;
@@ -725,7 +769,6 @@
     $("swVersion").value = p.sw_version;
     $("haPrefix").value = p.ha_prefix;
 
-    // Derive topics from base_topic
     $("stateTopic").value = `${p.base_topic}/state`;
     $("availabilityTopic").value = `${p.base_topic}/availability`;
     $("infoTopic").value = `${p.base_topic}/info`;
@@ -733,6 +776,12 @@
     metricsState = deepClone(p.metrics);
     renderMetrics();
     generateAll();
+
+    // Update any info icons in case you want to set them programmatically later
+    document.querySelectorAll(".infoLink img").forEach(img => {
+      if (!img.getAttribute("src") || img.getAttribute("src").startsWith("data:image/")) return;
+      img.setAttribute("src", INFO_ICON_DATA_URI);
+    });
   }
 
   function resetAll() {
@@ -755,7 +804,6 @@
     try { p = JSON.parse(txt); }
     catch (e) { alert("Invalid JSON."); return; }
 
-    // Apply to UI (best effort)
     $("deviceId").value = p.device?.id || "";
     $("deviceName").value = p.device?.name || "";
     $("manufacturer").value = p.device?.manufacturer || "";
@@ -771,11 +819,9 @@
     $("includeAvailability").checked = p.mqtt?.include_availability !== false;
     $("includeDiagnostics").checked = p.features?.include_diagnostics !== false;
 
-    // Targets
     const targets = new Set(p.targets || ["ha"]);
     Array.from($("targetsSelect").options).forEach(o => o.selected = targets.has(o.value));
 
-    // Metrics
     if (Array.isArray(p.metrics)) metricsState = deepClone(p.metrics);
     renderMetrics();
     generateAll();
@@ -829,11 +875,9 @@
           m.semantic.enum_map = { "1":"one", "2":"two" };
         }
       } else if (action === "uid_suffix") {
-        // For now we bind unique_id to key; keep UI for future extension
         m.key = safeTopicPart(t.value) || m.key;
       }
 
-      // Normalize empties
       if (m.ha) {
         if (m.ha.device_class === "") m.ha.device_class = null;
         if (m.ha.unit === "") m.ha.unit = null;
@@ -841,11 +885,10 @@
         if (m.ha.entity_category === "") m.ha.entity_category = null;
       }
 
-      renderMetrics();      // re-render to keep key changes consistent
-      generateAll();        // live-update outputs
+      renderMetrics();
+      generateAll();
     });
 
-    // checkbox clicks need change handler too
     $("metricsList").addEventListener("change", (ev) => {
       const t = ev.target;
       if (t.dataset.action === "toggle") {
@@ -899,11 +942,9 @@
     $("targetsSelect").addEventListener("change", generateAll);
 
     $("deviceId").addEventListener("input", () => {
-      // Auto-derive default topics if user hasn't customized them much:
       const did = safeTopicPart($("deviceId").value);
       if (!did) return;
       const suggestedBase = `home/air/${did}`;
-      // Only overwrite if current matches old pattern or is empty:
       const st = $("stateTopic").value.trim();
       if (!st || /home\/air\/.*\/state$/.test(st)) $("stateTopic").value = `${suggestedBase}/state`;
       const at = $("availabilityTopic").value.trim();
@@ -914,16 +955,12 @@
     });
   }
 
-  // ----------------------------
-  // Init
-  // ----------------------------
   function init() {
     wireTabs();
     wirePresetSelect();
     wireMetricsEdits();
     wireButtons();
     wireLiveBaseEdits();
-
     resetAll();
   }
 
